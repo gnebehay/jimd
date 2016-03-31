@@ -12,6 +12,7 @@ import markdown
 import os
 import shutil
 import socketserver
+import webbrowser
 
 from os.path import dirname
 from os.path import exists
@@ -34,7 +35,7 @@ class JIMD:
 
     OUT_DIR = 'build'
     TPL_DIR = 'templates'
-    CNT_DIR = 'content'
+    CNT_DIR = 'contents'
     PLG_DIR = 'plugins'
 
     PRJ_FILE = 'jimd.conf'
@@ -66,14 +67,16 @@ class JIMD:
 
         print('Working directory is ' + proj_dir)
 
+        self.PROJ_DIR = proj_dir
+
         #Update folders
         self.OUT_DIR = join(proj_dir, self.OUT_DIR)
         self.TPL_DIR = join(proj_dir, self.TPL_DIR)
-        self.PGS_DIR = join(proj_dir, self.PGS_DIR)
+        self.CNT_DIR = join(proj_dir, self.CNT_DIR)
         self.PLG_DIR = join(proj_dir, self.PLG_DIR)
 
         #Initialize markdown
-        self.md = markdown.Markdown(extensions = ['markdown.extensions.meta'])
+        self.md = markdown.Markdown(extensions = ['markdown.extensions.meta', 'markdown.extensions.fenced_code'])
 
         #Set up jinja templates
         self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.TPL_DIR))
@@ -83,17 +86,33 @@ class JIMD:
 
         print('Creating jimd project in current folder')
 
-        for d in [JIMD.TPL_DIR, JIMD.PGS_DIR, JIMD.PLG_DIR]:
+        for d in [JIMD.TPL_DIR, JIMD.CNT_DIR, JIMD.PLG_DIR]:
             if not exists(d):
                 os.mkdir(d)
 
         open(JIMD.PRJ_FILE, 'a').close()
 
+    def read_markdown(self, input_file):
+        input_file = codecs.open(input_file, mode="r", encoding="utf-8")
+        md_raw = input_file.read()
+
+        html = self.md.convert(md_raw)
+
+        meta = self.md.Meta
+
+        for key in iter(meta.keys()):
+            if len(meta[key]) == 1:
+                meta[key] = meta[key][0]
+
+        html = jinja2.Markup(html)
+
+        return html, meta
+
     def compile_file(self, root, f):
 
         basename, ext = splitext(f)
 
-        output_dir = root.replace(self.PGS_DIR, self.OUT_DIR)
+        output_dir = root.replace(self.CNT_DIR, self.OUT_DIR)
         os.makedirs(output_dir, exist_ok = True)
 
         input_file = join(root, f)
@@ -107,34 +126,27 @@ class JIMD:
             return
 
         #Else treat as markdown file
-        input_file = codecs.open(input_file, mode="r", encoding="utf-8")
-        md_raw = input_file.read()
-
-        html = self.md.convert(md_raw)
-
-        meta = self.md.Meta
-
-        for key in iter(meta.keys()):
-            if len(meta[key]) == 1:
-                meta[key] = meta[key][0]
-
-        content = jinja2.Markup(html)
+        html, meta = self.read_markdown(input_file)
 
         #Set template
         tpl = self.DEF_TPL
         if 'template' in meta.keys():
             tpl = meta['template']
 
-        content = self.env.get_template(tpl).render(content=content, **meta)
+        url = root.replace(self.CNT_DIR, '') + '/' + basename + '.html'
+
+        meta['url'] = url
+
+        content = self.env.get_template(tpl).render(content=html, **meta)
 
         dst_file = join(output_dir, basename + '.html')
 
-        with open(dst_file, 'w') as f:
+        with open(dst_file, 'w', encoding='utf-8') as f:
             f.write(content)
 
     def compile_content(self):
 
-        for root, dirnames, files in os.walk(self.PGS_DIR):
+        for root, dirnames, files in os.walk(self.CNT_DIR):
             for f in files:
                 self.compile_file(root, f)
 
@@ -181,7 +193,7 @@ class JIMD:
 
         if HAVE_WATCHDOG:
 
-            class JimdFileEventHandler(FileSystemEventHandler):
+            class ContentEventHandler(FileSystemEventHandler):
 
                 def on_modified(_, e):
 
@@ -191,10 +203,24 @@ class JIMD:
                         root, f = os.path.split(e.src_path)
                         self.compile_file(root, f)
 
-            event_handler = JimdFileEventHandler()
-            observer = Observer()
-            observer.schedule(event_handler, self.PGS_DIR, recursive=True)
-            observer.start()
+            class TemplateEventHandler(FileSystemEventHandler):
+
+                def on_modified(_, e):
+
+                    if isinstance(e, FileModifiedEvent):
+
+                        print('template ' + e.src_path + ' changed, building everything')
+                        self.build()
+
+            content_handler = ContentEventHandler()
+            content_observer = Observer()
+            content_observer.schedule(content_handler, self.CNT_DIR, recursive=True)
+            content_observer.start()
+
+            template_handler = TemplateEventHandler()
+            template_observer = Observer()
+            template_observer.schedule(template_handler, self.TPL_DIR, recursive=True)
+            template_observer.start()
 
         #Fire up webserver
 
@@ -205,6 +231,9 @@ class JIMD:
         Handler = http.server.SimpleHTTPRequestHandler
 
         httpd = socketserver.TCPServer(("", PORT), Handler)
+
+        print("Opening browser window")
+        webbrowser.open(url='http://localhost:8000')
 
         print("Starting web server at port", PORT)
         httpd.serve_forever()
