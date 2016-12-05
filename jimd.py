@@ -230,6 +230,7 @@ class JIMD:
 
         Handler = http.server.SimpleHTTPRequestHandler
 
+        socketserver.TCPServer.allow_reuse_address = True
         httpd = socketserver.TCPServer(("", PORT), Handler)
 
         print("Opening browser window")
