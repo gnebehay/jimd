@@ -4,6 +4,7 @@
 
 import argcomplete
 import argparse
+import configparser
 import codecs
 import http.server
 import importlib.machinery
@@ -12,6 +13,7 @@ import markdown
 import os
 import shutil
 import socketserver
+import subprocess
 import webbrowser
 
 from os.path import dirname
@@ -33,16 +35,19 @@ except:
 
 class JIMD:
 
-    OUT_DIR = 'build'
-    TPL_DIR = 'templates'
-    CNT_DIR = 'contents'
-    PLG_DIR = 'plugins'
-
-    PRJ_FILE = 'jimd.conf'
-
-    DEF_TPL = 'base.html'
-
     def __init__(self):
+
+        # Define constant directory entries
+        self.OUT_DIR = 'build'
+        self.TPL_DIR = 'templates'
+        self.CNT_DIR = 'contents'
+        self.PLG_DIR = 'plugins'
+
+        self.PRJ_FILE = 'jimd.conf'
+
+        self.DEF_TPL = 'base.html'
+
+        self.PUB_CMD = None
 
         #Find working directory
         proj_dir = os.getcwd()
@@ -67,7 +72,17 @@ class JIMD:
 
         print('Working directory is ' + proj_dir)
 
-        self.PROJ_DIR = proj_dir
+        self.PRJ_DIR = proj_dir
+
+        # Read project config file
+        prj_file = join(self.PRJ_DIR, self.PRJ_FILE)
+        config = configparser.ConfigParser()
+
+        config.read(join(prj_file))
+        jimd_config = config['jimd']
+
+        if 'PUB_CMD' in jimd_config:
+            self.PUB_CMD = jimd_config['PUB_CMD']
 
         #Update folders
         self.OUT_DIR = join(proj_dir, self.OUT_DIR)
@@ -81,6 +96,15 @@ class JIMD:
         #Set up jinja templates
         self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.TPL_DIR))
         self.env.globals.update(zip=zip)
+
+        # Configure plugins
+        for plugin in self.get_plugins():
+            try:
+                plugin.configure(self, config)
+            except AttributeError:
+                print('{} module has no configure() method'.format(plugin.__name__))
+
+
 
     def create():
 
@@ -113,7 +137,7 @@ class JIMD:
         basename, ext = splitext(f)
 
         output_dir = root.replace(self.CNT_DIR, self.OUT_DIR)
-        os.makedirs(output_dir, exist_ok = True)
+        os.makedirs(output_dir, exist_ok=True)
 
         input_file = join(root, f)
 
@@ -150,6 +174,28 @@ class JIMD:
             for f in files:
                 self.compile_file(root, f)
 
+    def get_plugins(self):
+        for plugin_file in os.listdir(self.PLG_DIR):
+            basename, ext = splitext(plugin_file)
+
+            if ext != '.py':
+                continue
+
+            loader = importlib.machinery.SourceFileLoader(basename, join(self.PLG_DIR, plugin_file))
+            plugin = loader.load_module()
+
+            yield plugin
+
+    def fetch(self):
+
+        # Run plugins
+        for plugin in self.get_plugins():
+            try:
+                plugin.fetch(self)
+            except AttributeError:
+                print('{} module has no configure() method'.format(plugin.__name__))
+
+
     def build(self):
 
         print('Deleting output directory')
@@ -178,16 +224,8 @@ class JIMD:
         print('Executing plugins')
 
         #Run plugins
-        for plugin_file in os.listdir(self.PLG_DIR):
-            basename, ext = splitext(plugin_file)
-
-            if ext != '.py':
-                continue
-
-            loader = importlib.machinery.SourceFileLoader(basename, join(self.PLG_DIR, plugin_file))
-            plugin = loader.load_module()
-
-            plugin.execute(self)
+        for plugin in self.get_plugins():
+            plugin.build(self)
 
     def preview(self):
 
@@ -239,15 +277,28 @@ class JIMD:
         print("Starting web server at port", PORT)
         httpd.serve_forever()
 
+    def publish(self):
+
+        if self.PUB_CMD is None:
+            print('Error: No publishing command defined')
+        else:
+
+            # First build
+            self.build()
+
+            # Then publish
+            subprocess.run(self.PUB_CMD, cwd=self.PRJ_DIR, shell=True)
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('command', choices=['build', 'create', 'preview'])
+    parser.add_argument('command', choices=['build', 'create', 'fetch', 'preview', 'publish'])
 
     argcomplete.autocomplete(parser)
 
-    args =  parser.parse_args()
+    args = parser.parse_args()
 
     if args.command == 'create':
         JIMD.create()
@@ -257,5 +308,11 @@ if __name__ == '__main__':
     if args.command == 'build':
         jimd.build()
 
+    if args.command == 'fetch':
+        jimd.fetch()
+
     if args.command == 'preview':
         jimd.preview()
+
+    if args.command == 'publish':
+        jimd.publish()
