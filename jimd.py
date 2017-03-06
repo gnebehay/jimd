@@ -2,7 +2,13 @@
 
 # PYTHON_ARGCOMPLETE_OK
 
-import argcomplete
+try:
+    import argcomplete
+    HAVE_ARGCOMPLETE = True
+except ImportError:
+    print('WARNING: argcomplete not available')
+    HAVE_ARGCOMPLETE = False
+
 import argparse
 import codecs
 import http.server
@@ -27,7 +33,7 @@ try:
 
 except:
 
-    print('Unable to initialize monitoring system, compile-on-the-fly not available.')
+    print('WARNING: Unable to initialize monitoring system, compile-on-the-fly not available.')
     HAVE_WATCHDOG = False
 
 
@@ -130,6 +136,7 @@ class JIMD:
 
         #Set template
         tpl = self.DEF_TPL
+
         if 'template' in meta.keys():
             tpl = meta['template']
 
@@ -244,7 +251,8 @@ if __name__ == '__main__':
 
     parser.add_argument('command', choices=['build', 'create', 'preview'])
 
-    argcomplete.autocomplete(parser)
+    if HAVE_ARGCOMPLETE:
+        argcomplete.autocomplete(parser)
 
     args =  parser.parse_args()
 
