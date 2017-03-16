@@ -110,8 +110,6 @@ class JIMD:
             except AttributeError:
                 print('{} module has no configure() method'.format(plugin.__name__))
 
-
-
     def create():
 
         print('Creating jimd project in current folder')
@@ -123,7 +121,9 @@ class JIMD:
         open(JIMD.PRJ_FILE, 'a').close()
 
     def read_markdown(self, input_file):
+
         input_file = codecs.open(input_file, mode="r", encoding="utf-8")
+
         md_raw = input_file.read()
 
         html = self.md.convert(md_raw)
