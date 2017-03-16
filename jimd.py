@@ -284,14 +284,16 @@ class JIMD:
         print("Starting web server at port", PORT)
         httpd.serve_forever()
 
-    def publish(self):
+    def publish(self, skip_build=False):
 
         if self.PUB_CMD is None:
             print('Error: No publishing command defined')
         else:
 
-            # First build
-            self.build()
+            if not skip_build:
+
+                # First build
+                self.build()
 
             # Then publish
             subprocess.run(self.PUB_CMD, cwd=self.PRJ_DIR, shell=True)
@@ -302,6 +304,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('command', choices=['build', 'create', 'fetch', 'preview', 'publish'])
+    parser.add_argument('--skip-build', action='store_true')
 
     if HAVE_ARGCOMPLETE:
         argcomplete.autocomplete(parser)
@@ -323,4 +326,4 @@ if __name__ == '__main__':
         jimd.preview()
 
     if args.command == 'publish':
-        jimd.publish()
+        jimd.publish(args.skip_build)
