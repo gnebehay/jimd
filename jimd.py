@@ -145,8 +145,10 @@ class JIMD:
 
         page_vars = page_vars.copy()
 
-        # TODO TODO: Is this correct on windows? rather not.
         path = output_file.replace(self.OUT_DIR, '')
+
+        # Make it work on windows
+        path = path.replace('\\', '/')
 
         page_vars['path'] = path
         page_vars['jimd'] = jimd
