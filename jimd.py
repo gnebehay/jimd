@@ -87,8 +87,11 @@ class JIMD:
         config.read(join(prj_file))
         jimd_config = config['jimd']
 
-        if 'PUB_CMD' in jimd_config:
-            self.PUB_CMD = jimd_config['PUB_CMD']
+        if 'pub_cmd' in jimd_config:
+            self.PUB_CMD = jimd_config['pub_cmd']
+
+        if 'base_url' in jimd_config:
+            self.BASE_URL = jimd_config['base_url']
 
         #Update folders
         self.OUT_DIR = join(proj_dir, self.OUT_DIR)
@@ -138,42 +141,55 @@ class JIMD:
 
         return html, meta
 
+    def render_template(self, template, output_file, **page_vars):
+
+        page_vars = page_vars.copy()
+
+        # TODO TODO: Is this correct on windows? rather not.
+        path = output_file.replace(self.OUT_DIR, '')
+
+        page_vars['path'] = path
+        page_vars['jimd'] = jimd
+
+        content = self.env.get_template(template).render(**page_vars)
+
+        with open(output_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+    # root is the directory of the file
     def compile_file(self, root, f):
 
-        basename, ext = splitext(f)
-
+        # Replace content dir with output dir
         output_dir = root.replace(self.CNT_DIR, self.OUT_DIR)
+
+        # Create missing folders, if necessary
         os.makedirs(output_dir, exist_ok=True)
+
+        # Split file into basename and extenstion
+        basename, ext = splitext(f)
 
         input_file = join(root, f)
 
+        # Copy all files that are not markdown files
         if ext != '.md':
 
-            #copy file
             dst_file = join(output_dir, f)
             shutil.copyfile(input_file, dst_file)
 
             return
 
-        #Else treat as markdown file
+        # Else treat as markdown file
         html, meta = self.read_markdown(input_file)
 
-        #Set template
-        tpl = self.DEF_TPL
+        # Set template
+        template = self.DEF_TPL
 
         if 'template' in meta.keys():
-            tpl = meta['template']
-
-        url = root.replace(self.CNT_DIR, '') + '/' + basename + '.html'
-
-        meta['url'] = url
-
-        content = self.env.get_template(tpl).render(content=html, **meta)
+            template = meta['template']
 
         dst_file = join(output_dir, basename + '.html')
 
-        with open(dst_file, 'w', encoding='utf-8') as f:
-            f.write(content)
+        self.render_template(template, dst_file, content=html)
 
     def compile_content(self):
 
