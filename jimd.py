@@ -12,6 +12,7 @@ except ImportError:
 import argparse
 import configparser
 import codecs
+import gettext
 import http.server
 import importlib.machinery
 import jinja2
@@ -100,10 +101,13 @@ class JIMD:
         self.PLG_DIR = join(proj_dir, self.PLG_DIR)
 
         #Initialize markdown
-        self.md = markdown.Markdown(extensions = ['markdown.extensions.meta', 'markdown.extensions.fenced_code'])
+        self.md = markdown.Markdown(extensions=['markdown.extensions.meta', 'markdown.extensions.fenced_code'])
 
         #Set up jinja templates
-        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.TPL_DIR))
+        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.TPL_DIR), extensions=['jinja2.ext.i18n'])
+        self.env.install_gettext_translations(gettext.translation('jimd', 'locale', ['de']))
+        self.env.install_null_translations()
+
         self.env.globals.update(zip=zip)
 
         # Configure plugins
