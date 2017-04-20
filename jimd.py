@@ -10,6 +10,7 @@ except ImportError:
     HAVE_ARGCOMPLETE = False
 
 import argparse
+import collections
 import configparser
 import codecs
 import gettext
@@ -39,8 +40,15 @@ except:
     print('WARNING: Unable to initialize monitoring system, compile-on-the-fly not available.')
     HAVE_WATCHDOG = False
 
+# Define Page
+Page = collections.namedtuple('Page', ['template', 'output_file', 'page_vars'])
+
+class smart_dict(dict):
+    def __missing__(self, key):
+        return key
 
 class JIMD:
+
 
     def __init__(self):
 
@@ -51,6 +59,8 @@ class JIMD:
         self.PLG_DIR = 'plugins'
 
         self.PRJ_FILE = 'jimd.conf'
+        self.MSG_FILE = 'messages.txt'
+        self.TRN_FILE = 'translations.txt'
 
         self.DEF_TPL = 'base.html'
 
@@ -88,6 +98,14 @@ class JIMD:
         config.read(join(prj_file))
         jimd_config = config['jimd']
 
+        messages = configparser.ConfigParser()
+        messages.read(join(self.PRJ_DIR, self.MSG_FILE))
+        self.messages = messages['messages']
+
+        translations = configparser.ConfigParser()
+        translations.read(join(self.PRJ_DIR, self.TRN_FILE))
+        self.translations = translations['translations']
+
         if 'pub_cmd' in jimd_config:
             self.PUB_CMD = jimd_config['pub_cmd']
 
@@ -104,9 +122,9 @@ class JIMD:
         self.md = markdown.Markdown(extensions=['markdown.extensions.meta', 'markdown.extensions.fenced_code'])
 
         #Set up jinja templates
-        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.TPL_DIR), extensions=['jinja2.ext.i18n'])
-        self.env.install_gettext_translations(gettext.translation('jimd', 'locale', ['de']))
-        self.env.install_null_translations()
+        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.TPL_DIR))
+        # self.env.install_gettext_translations(gettext.translation('jimd', 'locale', ['de']))
+        # self.env.install_null_translations()
 
         self.env.globals.update(zip=zip)
 
@@ -116,6 +134,11 @@ class JIMD:
                 plugin.configure(self, config)
             except AttributeError:
                 print('{} module has no configure() method'.format(plugin.__name__))
+
+        self.pages = []
+        self.trans = smart_dict()
+
+
 
     def create():
 
@@ -145,22 +168,57 @@ class JIMD:
 
         return html, meta
 
-    def render_template(self, template, output_file, **page_vars):
 
-        page_vars = page_vars.copy()
+    # TODO: double parameter template
+    def render_template(self, tpl, output_file, **page_vars):
 
         path = output_file.replace(self.OUT_DIR, '')
-
         # Make it work on windows
         path = path.replace('\\', '/')
-
         page_vars['path'] = path
         page_vars['jimd'] = jimd
 
-        content = self.env.get_template(template).render(**page_vars)
+        new_page = Page(tpl, output_file, page_vars.copy())
 
-        with open(output_file, 'w', encoding='utf-8') as f:
-            f.write(content)
+        self.pages.append(new_page)
+
+    def render_now(self):
+
+        # First pass: update refs
+
+        for page in self.pages:
+
+            if 'translates' in page.page_vars:
+
+                original_page = page.page_vars['translates']
+                path = page.page_vars['path']
+
+                # Set translation
+                self.trans[path] = original_page
+
+                # And vice versa
+                self.trans[original_page] = path
+
+                if path.endswith('index.html'):
+
+                    # Set translation
+                    self.trans[path[:path.index('index.html')]] = original_page[:original_page.index('index.html')]
+
+                    # And vice versa
+                    self.trans[original_page[:original_page.index('index.html')]] = path[:path.index('index.html')]
+
+        for page in self.pages:
+
+            # Usecase 1: get link or translated link
+
+            translation = 'translates' in page.page_vars
+            links = self.trans if translation else smart_dict()
+            msgs = self.translations if translation else self.messages
+
+            content = self.env.get_template(page.template).render(links=links, msg=msgs, **page.page_vars, trans=self.trans)
+
+            with open(page.output_file, 'w', encoding='utf-8') as f:
+                f.write(content)
 
     # root is the directory of the file
     def compile_file(self, root, f):
@@ -193,9 +251,13 @@ class JIMD:
         if 'template' in meta.keys():
             template = meta['template']
 
+        meta['content'] = html
+
         dst_file = join(output_dir, basename + '.html')
 
-        self.render_template(template, dst_file, content=html)
+        # TODO: Instead of rendering right away, we need to cache this stuff
+        # But how to deal with page vars from plugins?
+        self.render_template(template, dst_file, **meta)
 
     def compile_content(self):
 
@@ -255,6 +317,10 @@ class JIMD:
         #Run plugins
         for plugin in self.get_plugins():
             plugin.build(self)
+
+
+        # Render page tree
+        self.render_now()
 
     def preview(self):
 
@@ -319,7 +385,6 @@ class JIMD:
 
             # Then publish
             subprocess.run(self.PUB_CMD, cwd=self.PRJ_DIR, shell=True)
-
 
 if __name__ == '__main__':
 
