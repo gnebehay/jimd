@@ -99,11 +99,11 @@ class JIMD:
         jimd_config = config['jimd']
 
         messages = configparser.ConfigParser()
-        messages.read(join(self.PRJ_DIR, self.MSG_FILE))
+        messages.read(join(self.PRJ_DIR, self.MSG_FILE), encoding='utf-8')
         self.messages = messages['messages']
 
         translations = configparser.ConfigParser()
-        translations.read(join(self.PRJ_DIR, self.TRN_FILE))
+        translations.read(join(self.PRJ_DIR, self.TRN_FILE), encoding='utf-8')
         self.translations = translations['translations']
 
         if 'pub_cmd' in jimd_config:
