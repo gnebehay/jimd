@@ -13,7 +13,6 @@ import argparse
 import collections
 import configparser
 import codecs
-import gettext
 import http.server
 import importlib.machinery
 import jinja2
@@ -122,7 +121,9 @@ class JIMD:
         self.md = markdown.Markdown(extensions=['markdown.extensions.meta', 'markdown.extensions.fenced_code'])
 
         #Set up jinja templates
-        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.TPL_DIR))
+        self.env = jinja2.Environment(loader=jinja2.FileSystemLoader(self.TPL_DIR),
+            autoescape=jinja2.select_autoescape(['html'])
+        )
         # self.env.install_gettext_translations(gettext.translation('jimd', 'locale', ['de']))
         # self.env.install_null_translations()
 
