@@ -51,6 +51,10 @@ class JIMD:
 
     def __init__(self):
 
+        print('Initializing JIMD')
+        print('jinja version:', jinja2.__version__)
+        print('markdown version:', markdown.version)
+
         # Define constant directory entries
         self.OUT_DIR = 'build'
         self.TPL_DIR = 'templates'
@@ -138,6 +142,8 @@ class JIMD:
 
         self.pages = []
         self.trans = smart_dict()
+
+        print('JIMD successfully initialized')
 
 
 
