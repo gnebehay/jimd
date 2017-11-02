@@ -1,4 +1,4 @@
-#jimd - jinja2 templates and markdown for static websites
+# jimd - jinja2 templates and markdown for static websites
 
 Jimd is an extremely simple static web site generator.
 It provides
@@ -8,11 +8,11 @@ It provides
 * A mechanism for detecting changes in content files in order to compile them in the background
 * A rudimentary plugin architecture
 
-##Installation
+## Installation
 
 Clone this repository.
 
-##Synopsis
+## Synopsis
 
 Create a project
 ```
@@ -29,7 +29,7 @@ Preview a project and monitor changes
 python jimd.py preview
 ```
 
-##Folders
+## Folders
 
 Output folder
 ```
@@ -51,12 +51,12 @@ Plugin folder
 /plugins
 ```
 
-##Templates
+## Templates
 
 Jinja2 templates can be put into the templates folder in order to be used by content pages.
 The templates are loaded drectly by jinja2, so inheritance etc. works.
 
-##Content
+## Content
 Files in the content folder are processed in two different ways.
 If the file is not a markdown file (i.e. it does not have a .md extension),
 it is copied to the build folder.
@@ -66,7 +66,7 @@ For example,
 ```
 template: page.html
 
-#My markdown page
+# My markdown page
 
 yada yada yada
 ```
@@ -80,7 +80,7 @@ For example,
 ```
 title: My title
 
-#My markdown page
+# My markdown page
 
 yada yada yada
 ```
