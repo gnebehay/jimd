@@ -1,4 +1,4 @@
 argparse
 configparser
-jinja2
-markdown
+jinja2==2.11.3
+markdown==2.6.11
